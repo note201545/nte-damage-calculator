@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이환 데미지 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: 게임 챌린지 화면 톤. 왼쪽 목표 상세정보 / 오른쪽 스탯·추가 제약·제약·결과. 다크 단일 테마. */
+:root {
+  --bg: #101013;
+  --panel: #1a1a1e;
+  --row: #222227;
+  --line: #34343b;
+  --ink: #f2f2f4;
+  --muted: #a3a3ad;
+  --pink: #e8488f;
+  --gold: #f2a93b;
+  --gold-ink: #241a08;
+  --weak: #ff9bc6;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background:
+    repeating-linear-gradient(-28deg, rgba(255,255,255,0.018) 0 46px, transparent 46px 120px),
+    var(--bg);
+  color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 20px 48px; }
+.title-bar { display: inline-flex; align-items: center; gap: 12px; padding: 8px 22px 8px 10px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); margin-bottom: 18px; }
+.title-bar .ico { width: 36px; height: 36px; border-radius: 50%; background: #2a2a30; display: grid; place-items: center; }
+h1 { margin: 0; font-size: 22px; font-weight: 900; font-style: italic; letter-spacing: -0.01em; }
+.heading { font-weight: 900; font-style: italic; font-size: 17px; margin: 0 0 10px; text-shadow: 0 2px 0 #000; letter-spacing: -0.01em; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.col { display: grid; gap: 16px; }
+
+/* 목표 상세정보 */
+.target { position: sticky; top: 16px; display: grid; gap: 14px; }
+@media (max-width: 900px) { .target { position: static; } }
+.target-head { display: flex; justify-content: space-between; align-items: baseline; }
+.target-head .label { color: #ff8a3d; font-weight: 900; font-style: italic; font-size: 17px; }
+.sel { display: flex; align-items: center; background: var(--row); border: 1px solid var(--line); border-radius: 999px; padding: 0 14px; }
+.sel select { flex: 1; min-width: 0; appearance: none; border: 0; background: transparent; color: var(--ink); font: 700 15px var(--font-body); padding: 10px 0; cursor: pointer; outline: none; }
+.sel::after { content: "▾"; color: var(--muted); }
+.sel:focus-within { border-color: var(--pink); }
+.sel select option { background: var(--panel); color: var(--ink); }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; font-size: 14px; }
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.res-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.res-cell { background: var(--row); border-radius: 8px; padding: 6px 4px; text-align: center; border: 1px solid transparent; }
+.res-cell span { display: block; font-size: 12px; color: var(--muted); }
+.res-cell b { font: 600 14px var(--font-num); font-variant-numeric: tabular-nums; }
+.res-cell.weak b { color: var(--weak); }
+.res-cell.on { border-color: var(--pink); }
+.tiny { font-size: 12px; color: var(--muted); margin: 0; overflow-wrap: anywhere; }
+
+/* 캐릭터 스탯 */
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.inp { display: flex; align-items: center; background: var(--row); border: 1px solid var(--line); border-radius: 10px; }
+.inp:focus-within { border-color: var(--pink); }
+.inp input, .inp select { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink); font: 500 15px var(--font-num); padding: 9px 10px; outline: none; }
+.inp select { font-family: var(--font-body); font-weight: 700; cursor: pointer; }
+.inp select option { background: var(--panel); }
+.inp .unit { padding-right: 10px; color: var(--muted); font-size: 13px; }
+
+/* 추가 제약 (체크 목록) / 제약 (3단 선택) */
+.extra-list { display: grid; gap: 8px; }
+.extra-card { background: var(--row); border: 1px solid var(--line); border-radius: 12px; }
+.extra-card:hover { border-color: #4a4a53; }
+.extra { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 12px; padding: 12px 14px; color: var(--ink); font: 700 15px var(--font-body); cursor: pointer; }
+.stack-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 0 14px 12px 48px; }
+.stack-row label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.stack-row .inp { width: 120px; }
+.stack-row .range { flex: 1; min-width: 140px; accent-color: var(--pink); }
+.stack-row[data-off="true"] { opacity: 0.45; }
+.extra small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
+.opt-group { display: grid; gap: 8px; margin-bottom: 14px; }
+.opt-group:last-child { margin-bottom: 0; }
+.opt-group h3 { margin: 0; font-size: 15px; font-weight: 900; font-style: italic; text-shadow: 0 2px 0 #000; }
+.opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opt { display: flex; align-items: center; gap: 10px; background: var(--row); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; color: var(--ink); font: 700 17px var(--font-body); cursor: pointer; }
+.opt:hover { border-color: #4a4a53; }
+.extra:focus-visible, .opt:focus-visible, .btn:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+.mark { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #0c0c0e; border: 2px solid #303036; display: grid; place-items: center; }
+[aria-pressed="true"] .mark, [aria-checked="true"] .mark { background: transparent; border-color: var(--pink); }
+[aria-pressed="true"] .mark::after, [aria-checked="true"] .mark::after { content: ""; width: 9px; height: 5px; border: solid var(--pink); border-width: 0 0 3px 3px; transform: translateY(-1px) rotate(-45deg); }
+.empty { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; color: var(--muted); font-size: 14px; margin: 0; }
+
+/* 결과 */
+.result-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; background: var(--gold); color: var(--gold-ink); border-radius: 12px; padding: 12px 20px; }
+.result-bar .lbl { font-weight: 900; font-style: italic; font-size: 17px; }
+.result-bar .lbl small { display: block; font-style: normal; font-weight: 500; font-size: 12px; opacity: 0.8; }
+.result-bar .val { font: 600 34px/1.1 var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.result-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.btn { border: 0; border-radius: 999px; background: #e9e9ec; color: #1a1a1e; font: 900 16px var(--font-body); padding: 12px 28px; cursor: pointer; box-shadow: 0 0 0 4px rgba(255,255,255,0.08); }
+.btn:hover { background: #fff; }
+.crit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.crit[hidden] { display: none; }
+.crit div { background: var(--row); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.crit span { display: block; font-size: 13px; color: var(--muted); font-weight: 700; }
+.crit strong { font: 600 22px var(--font-num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+dl.break { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; font-size: 14px; }
+dl.break dt { color: var(--muted); }
+dl.break dd { margin: 0; text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+dl.break .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); height: 0; margin: 4px 0; }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.link { border: 0; background: transparent; color: var(--muted); font: 500 13px var(--font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 4px 0; }
+#phaseField[hidden] { display: none; }
+@media (max-width: 560px) {
+  .opts { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .opt { padding: 9px 8px; font-size: 15px; gap: 6px; }
+  .mark { width: 18px; height: 18px; }
+  .result-bar .val { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title-bar">
+    <span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#f2f2f4" stroke-width="1.8"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M10 7v6M7 10h6"/></svg></span>
+    <h1>이환 데미지 계산기</h1>
+  </div>
+
+  <div class="grid">
+    <!-- 목표 상세정보 -->
+    <aside class="panel target" aria-labelledby="h-target">
+      <div class="target-head"><span class="label" id="h-target">목표 상세정보</span><span class="tiny" id="contentName"></span></div>
+      <div class="field"><label for="content">컨텐츠</label><div class="sel"><select id="content"></select></div></div>
+      <div class="field"><label for="boss">보스</label><div class="sel"><select id="boss"></select></div></div>
+      <div class="field" id="phaseField"><label for="phase">페이즈</label><div class="sel"><select id="phase"></select></div></div>
+      <dl class="stats">
+        <dt>기본 HP</dt><dd id="sHp"></dd>
+        <dt>기본 방어력</dt><dd id="sDef"></dd>
+        <dt>붕괴 최대치</dt><dd id="sBreak"></dd>
+      </dl>
+      <div>
+        <p class="tiny" style="margin-bottom:6px">속성별 기본 저항 (분홍 테두리: 공격 속성, 분홍 글자: 약점)</p>
+        <div class="res-grid" id="resGrid"></div>
+      </div>
+      <p class="tiny" id="packId"></p>
+    </aside>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="h-char">
+        <h2 class="heading" id="h-char">캐릭터 스탯</h2>
+        <div class="fields">
+          <div class="field"><label for="lv">캐릭터 레벨</label><div class="inp"><input id="lv" type="number" inputmode="numeric" min="1" max="100" step="1" value="80"></div></div>
+          <div class="field"><label for="atk">공격력</label><div class="inp"><input id="atk" type="number" inputmode="decimal" min="0" step="1" value="3000"></div></div>
+          <div class="field"><label for="mult">스킬 계수</label><div class="inp"><input id="mult" type="number" inputmode="decimal" min="0" step="0.1" value="100"><span class="unit">%</span></div></div>
+          <div class="field"><label for="element">공격 속성</label><div class="inp"><select id="element"></select></div></div>
+          <div class="field"><label for="cr">치명타 확률</label><div class="inp"><input id="cr" type="number" inputmode="decimal" min="0" step="0.1" value="50"><span class="unit">%</span></div></div>
+          <div class="field"><label for="cd">치명타 피해</label><div class="inp"><input id="cd" type="number" inputmode="decimal" min="0" step="0.1" value="100"><span class="unit">%</span></div></div>
+          <div class="field"><label for="dmgAll">통용 피해증가</label><div class="inp"><input id="dmgAll" type="number" inputmode="decimal" step="0.1" value="0"><span class="unit">%</span></div></div>
+          <div class="field"><label for="dmgEle">속성 피해증가</label><div class="inp"><input id="dmgEle" type="number" inputmode="decimal" step="0.1" value="0"><span class="unit">%</span></div></div>
+          <div class="field"><label for="ignDef">방어 무시</label><div class="inp"><input id="ignDef" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0"><span class="unit">%</span></div></div>
+          <div class="field"><label for="ignRes">저항 무시</label><div class="inp"><input id="ignRes" type="number" inputmode="decimal" step="0.1" value="0"><span class="unit">%</span></div></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-extra">
+        <h2 class="heading" id="h-extra">추가 제약</h2>
+        <div class="extra-list" id="extraList"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-cons">
+        <h2 class="heading" id="h-cons">제약</h2>
+        <div id="consList"></div>
+      </section>
+
+      <section aria-label="계산 결과" aria-live="polite">
+        <div class="result-bar">
+          <div class="lbl">위 조건 적용 시 1회 데미지<small id="rCritNote"></small></div>
+          <div class="val" id="rCrit">0</div>
+        </div>
+        <div class="crit" id="critBox" hidden>
+          <div><span>치명 확률 반영 (기대값)</span><strong id="rExp">0</strong></div>
+          <div><span>치명타 미발생</span><strong id="rBase">0</strong></div>
+          <p class="tiny" id="rExpNote" style="grid-column:1/-1"></p>
+        </div>
+        <div class="result-actions"><button type="button" class="btn" id="critToggle" aria-expanded="false" aria-controls="critBox">기대값 / 치명타 미발생 보기</button></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-break">
+        <h2 class="heading" id="h-break">계산 과정</h2>
+        <dl class="break">
+          <dt>공격력 × 스킬 계수</dt><dd id="bAtk"></dd>
+          <dt>피해증가 구간</dt><dd id="bDmg"></dd>
+          <dt>방어 구간</dt><dd id="bDef"></dd>
+          <dt>저항 구간</dt><dd id="bRes"></dd>
+          <dt>추가 제약 피해 배율</dt><dd id="bMult"></dd>
+          <dt class="sep"></dt>
+          <dt>적 방어력 (제약 적용 후, 방어 무시 전)</dt><dd id="bDefRaw"></dd>
+          <dt>적 유효 방어력</dt><dd id="bEffDef"></dd>
+          <dt>적 유효 저항</dt><dd id="bEffRes"></dd>
+          <dt>적 최종 HP</dt><dd id="bHp"></dd>
+        </dl>
+        <div class="foot"><span class="tiny">입력값은 이 브라우저에 자동 저장됩니다.</span><button type="button" class="link" id="reset">입력값 초기화</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═════════ 데이터 ═════════
+   새 컨텐츠/보스는 이 블록만 수정하면 됩니다.
+   - res: 속성별 기본 저항(소수, 0.2 = 20%). 일반 속성은 현재 숨김이지만 값은 보관.
+   - constraintRes: '제약'에 나오는 "적의 X속성 저항 증가" 속성 목록. 보스마다 다름.
+   - stacks: { max, default } 가 있으면 중첩 수 입력칸이 생기고, 위 효과 수치는 "중첩 1당" 값으로 계산됩니다.
+   - group: 같은 전투에 함께 나오는 보스끼리 같은 값을 주면 제약 선택을 공유합니다.
+   - extra: '추가 제약' 목록. 보스마다 다름. 게임 문구는 모두 넣고, 계산에 쓰는 효과만 숫자로 적습니다.
+       (hp: HP 증가, defPct: 방어력 증가, res: 특정 속성 저항 증가, resAll: 모든 속성 저항 증가, dmgMult: 데미지에 곱하는 배율)
+       { text: "게임 문구", hp: 0.25, defPct: 0.5, res: { light: 0.1 }, note: "보조 설명" }
+   null이면 "데이터 입력 대기"로 표시됩니다. */
+const ELEMENTS = [
+  { key: "light",  name: "빛" },
+  { key: "phase",  name: "상" },
+  { key: "dark",   name: "어둠" },
+  { key: "spirit", name: "령" },
+  { key: "soul",   name: "혼" },
+  { key: "curse",  name: "주" },
+  { key: "psyche", name: "정신", ignoresDefense: true } // 心灵 피해: 방어 구간 = 1
+];
+const R = (normal, light, phase, dark, spirit, soul, curse, psyche) => ({ normal, light, phase, dark, spirit, soul, curse, psyche });
+
+/* '제약' 공통 선택지 (모든 보스 동일) */
+const CONSTRAINT_HP  = [0.5, 1.0, 1.5];   // 적 HP 증가
+const CONSTRAINT_RES = [0.1, 0.2, 0.3];   // 적의 X속성 저항 증가
+
+/* 마몬 + 골판지 캐슬: 같은 전투에 함께 등장 → 제약/추가 제약과 선택 상태를 공유 */
+const MAMMON_CARDBOARD = {
+  group: "mammon-cardboard",
+  constraintRes: ["light", "spirit", "phase"],
+  extra: [
+    { text: "적의 HP가 25% 증가한다. 적 목표가 붕괴 상태에 들어가면 나머지 목표도 붕괴 상태에 빠진다.", hp: 0.25 },
+    { text: "스테이지 내에서 적 목표가 사망하면 나머지 생존 유닛이 공격력 50%와 방어력 50%를 획득한다.", defPct: 0.5,
+      note: "조건부: 한쪽 목표가 쓰러진 뒤 남은 목표를 때릴 때 체크" },
+    { text: "적이 치명타를 줄 수 있으며, 적이 치명 확률 50%와 치명 피해 50%를 획득한다." }
+  ]
+};
+
+const DATA = {
+  contents: [
+    {
+      id: "banquet-1-5",
+      name: "1.5 연회",
+      bosses: [
+        { id: "taggido", name: "타기도",
+          constraintRes: ["spirit", "curse", "dark"],
+          extra: [
+            { text: "타기도의 HP가 처음으로 50% 이하로 떨어지면 HP를 25% 회복한다." },
+            { text: "파티 전체의 치명 확률이 20% 감소하고, 극한 반격을 발동할 때마다 파티 전체의 치명 확률이 5% 증가한다. (최대 100%까지 증가)" },
+            { text: "파티가 주는 일반 공격 및 울티메이트 유형 피해가 20% 감소한다.", dmgMult: 0.8,
+              note: "주의: 일반 공격과 울티메이트 스킬에만 적용됩니다. 다른 스킬을 계산할 때는 체크를 해제하세요." }
+          ],
+          phases: [
+          { packId: "boss_04_BP_DiyBoss_DataPack3", hp: 2514432, atk: 1063, def: 1032, res: R(0.2,0.2,0.16,0.2,0.2,0.2,0.2,0.2), breakMax: 45 } ] },
+        { id: "headless", name: "머리 없는 라이더",
+          constraintRes: ["light", "spirit", "curse"],
+          extra: [
+            { text: "플레이어는 전투 중에 통상적인 공격으로 사이클 수치를 획득할 수 없고, 적이 붕괴 상태에 빠지면 파티 전체의 사이클 수치가 완전히 회복된다." },
+            { text: "머리 없는 라이더의 공격이 플레이어에게 명중할 때마다 랜덤 1개 속성의 이능력 피해 저항이 10% 증가한다.",
+              note: "피격 횟수와 속성이 랜덤이라 계산에 반영하지 않음" },
+            { text: "적의 공격이 플레이어에게 명중할 때마다 파티 전체의 바이레일 스킬 쿨타임이 2초 증가한다. (최대 999초)" }
+          ],
+          phases: [
+          { packId: "boss_13_BP_DiyBoss_DataPack3", hp: 3778005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.16,0.2,0.2), breakMax: 70 } ] },
+        { id: "kingbutterfly", name: "왕나비",
+          constraintRes: ["dark", "soul", "phase"],
+          extra: [
+            { text: "왕나비가 전투 시작 시 HP의 30%에 해당하는 방어막을 획득하고, 방어력을 50% 획득한다.", defPct: 0.5,
+              note: "방어력 50%만 계산에 반영 (방어막은 HP에 포함하지 않음)" },
+            { text: "적의 공격이 플레이어를 명중할 때마다 체력 30P 감소 (최대 0까지 감소)" },
+            { text: "적 공격이 플레이어를 명중할 때마다 현재 캐릭터의 울트에너지가 20P 감소한다. (최대 0까지 감소)" }
+          ],
+          phases: [
+          { packId: "Boss_08_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.16,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "sugeumwon", name: "「수금원」",
+          constraintRes: ["curse", "dark", "soul"],
+          extra: [
+            { text: "수금원의 HP가 50% 미만일 시 공격력이 50% 증가하고 방어력이 50% 증가한다.", defPct: 0.5,
+              note: "조건부: 수금원의 HP가 50% 미만인 구간을 계산할 때 체크" },
+            { text: "파티 전체가 10초마다 HP를 2% 잃는다. (최대 HP의 20%까지 감소)" },
+            { text: "적이 붕괴 상태에 빠지지 않는다." }
+          ],
+          phases: [
+          { packId: "boss_26_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2173, def: 1062, res: R(0.2,0.16,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "mammon", name: "마몬", ...MAMMON_CARDBOARD, phases: [
+          { packId: "boss_17_BP_DiyBoss_DataPack3", hp: 5084484, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "blackbook", name: "검은책",
+          constraintRes: ["light", "spirit", "phase"],
+          extra: [
+            { text: "검은 책에 속박된 팀원은 다시 전투에 참여할 수 없으며, 팀원을 1명 속박할 때마다 검은 책의 HP가 25% 회복된다." },
+            { text: "적의 공격이 플레이어에게 명중하면 현재 캐릭터의 바이레일 스킬이 봉쇄된다. (5초 지속)" },
+            { text: "적의 공격이 플레이어에게 명중하면 현재 캐릭터의 울티메이트가 봉쇄된다. (5초 지속)" }
+          ],
+          phases: [
+          { packId: "boss_09_BP_Diy_DataPack3", hp: 3778005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.16,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "tyrantbear", name: "폭군베어",
+          constraintRes: ["light", "soul", "phase"],
+          extra: [
+            { text: "폭군베어의 공격력이 3초마다 2% 증가하고(최대 20%), 상한 도달 시 방어력을 50% 획득한다.", defPct: 0.5,
+              note: "조건부: 공격력 상한 도달(전투 시작 약 30초) 이후를 계산할 때 체크" },
+            { text: "적의 HP가 25% 증가한다. 플레이어가 반격기 발동에 성공할 때마다 적의 HP가 추가로 3% 차감된다.", hp: 0.25,
+              note: "HP 25% 증가만 반영 (반격기 차감은 반영하지 않음)" },
+            { text: "적의 공격이 플레이어에게 명중할 때마다 플레이어가 혼란 상태에 빠진다. (이동 방향 조작 반전, 5초 지속)" }
+          ],
+          phases: [
+          { packId: "mon_051_BP_Diy_DataPack3", hp: 4498005, atk: 2142, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.16,0.2), breakMax: 70 } ] },
+        { id: "cardboard", name: "골판지 캐슬", ...MAMMON_CARDBOARD, phases: [
+          { packId: "mon_48_BP_Diy_DataPack3", hp: 3813363, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "inquisitor", name: "이단심문관",
+          constraintRes: ["curse", "dark", "soul"],
+          extra: [
+            { text: "적의 HP가 50% 초과 시 공격력 50%를 획득하고, HP가 50% 미만일 시 방어력 150%를 획득한다.", defPct: 1.5,
+              note: "조건부: 적 HP가 50% 미만인 구간을 계산할 때 체크" },
+            { text: "적의 방어 관련 속성이 3초마다 1% 증가한다. (HP, 방어력, 모든 속성 이능력 피해 저항 포함, 최대 30%) 반격기 발동에 성공할 때마다 해당 효과가 1중첩 감소한다.",
+              hp: 0.01, defPct: 0.01, resAll: 0.01, stacks: { max: 30, default: 30 },
+              note: "중첩 1당 HP·방어력 +1%, 모든 속성 저항 +1%p" },
+            { text: "적의 방어 관련 속성이 20% 증가한다. (HP, 방어력, 모든 속성 이능력 피해 저항 포함)",
+              hp: 0.2, defPct: 0.2, resAll: 0.2,
+              note: "HP·방어력 +20%, 모든 속성 저항 +20%p" }
+          ],
+          phases: [
+          { label: "1페이즈", packId: "boss_039_BP_Diy_DataPack3",   hp: 2542242, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 },
+          { label: "2페이즈", packId: "boss_039_2_BP_Diy_DataPack3", hp: 3813363, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] }
+      ]
+    }
+  ]
+};
+const DEFAULT_RES = 0.2; // 이보다 낮은 저항을 약점으로 표시
+
+/* ═════════ 공식 (NGA 원문 1.4 防御区 / 1.5 抗性区) ═════════ */
+const levelBase = lv => 600 + 6 * lv;                                   // 공격자 레벨 기수
+const effectiveDef = (baseDef, defPct, ignDef) => baseDef * (1 + defPct) * (1 - ignDef);
+function defenseZone(lv, effDef, ignoresDefense) {
+  if (ignoresDefense) return 1;
+  const k = levelBase(lv);
+  return k / (Math.max(0, effDef) + k);
+}
+function resistanceZone(r) {
+  if (r > 0.6) return 1 / (6.25 * r - 1.25);
+  if (r >= 0) return 1 - r;
+  return 1 - r / (1 - r);
+}
+
+/* ═════════ 상태 ═════════ */
+const $ = id => document.getElementById(id);
+const NUM_IDS = ["lv","atk","mult","cr","cd","dmgAll","dmgEle","ignDef","ignRes"];
+const STORE_KEY = "nte-dmg-calc-v2";
+// 제약/추가 제약 선택은 보스별로 따로 기억
+const picks = {}; // { [bossId]: { hp: idx|null, res: { [elKey]: idx|null }, extra: { [i]: bool } } }
+const pickOf = id => { const p = (picks[id] ||= { hp: null, res: {}, extra: {} }); p.stacks ||= {}; return p; };
+const stackOf = (pk, item, i) => Math.min(item.stacks.max, Math.max(0, Math.round(pk.stacks[i] ?? item.stacks.default)));
+const pickKey = b => b.group || b.id; // 함께 나오는 보스는 선택 공유
+
+const fmtInt = n => Math.round(n).toLocaleString("ko-KR");
+const fmtPct = r => (Math.round(r * 1000) / 10).toLocaleString("ko-KR") + "%";
+const fmtX = n => "× " + n.toFixed(4);
+const num = id => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : 0; };
+const elName = k => (ELEMENTS.find(e => e.key === k) || { name: k }).name;
+
+function fillSelect(sel, items, getLabel) {
+  sel.innerHTML = "";
+  items.forEach((it, i) => { const o = document.createElement("option"); o.value = i; o.textContent = getLabel(it); sel.appendChild(o); });
+}
+ELEMENTS.forEach(e => { const o = document.createElement("option"); o.value = e.key; o.textContent = e.name; $("element").appendChild(o); });
+fillSelect($("content"), DATA.contents, c => c.name);
+
+const content = () => DATA.contents[+$("content").value] || DATA.contents[0];
+const boss = () => content().bosses[+$("boss").value] || content().bosses[0];
+const phase = () => boss().phases[+$("phase").value] || boss().phases[0];
+
+function onContent() { fillSelect($("boss"), content().bosses, b => b.name); onBoss(); }
+function onBoss() {
+  const b = boss();
+  fillSelect($("phase"), b.phases, p => p.label || "기본");
+  $("phaseField").hidden = b.phases.length < 2;
+  renderConstraints();
+  calc();
+}
+
+/* ═════════ 제약 / 추가 제약 렌더 ═════════ */
+function optButton(label, pressed, onClick) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "opt"; b.setAttribute("aria-pressed", String(pressed));
+  b.innerHTML = `<span class="mark" aria-hidden="true"></span><span>${label}</span>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+function optGroup(title, values, current, onPick) {
+  const g = document.createElement("div"); g.className = "opt-group"; g.setAttribute("role", "group");
+  const h = document.createElement("h3"); h.textContent = title; g.appendChild(h);
+  const row = document.createElement("div"); row.className = "opts";
+  values.forEach((v, i) => row.appendChild(optButton(fmtPct(v), current === i, () => onPick(current === i ? null : i))));
+  g.setAttribute("aria-label", title); g.appendChild(row);
+  return g;
+}
+function renderConstraints() {
+  const b = boss(), pk = pickOf(pickKey(b));
+
+  // 추가 제약 (보스별)
+  const ex = $("extraList"); ex.innerHTML = "";
+  if (!b.extra) {
+    ex.innerHTML = `<p class="empty">${b.name}의 추가 제약 데이터를 기다리는 중입니다.</p>`;
+  } else {
+    b.extra.forEach((item, i) => {
+      const card = document.createElement("div"); card.className = "extra-card";
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "extra"; btn.setAttribute("role", "checkbox");
+      btn.setAttribute("aria-checked", String(!!pk.extra[i]));
+      const affects = item.hp || item.defPct || item.dmgMult || item.resAll || (item.res && Object.keys(item.res).length);
+      const note = [item.note, affects ? "" : "계산에 반영되지 않는 효과"].filter(Boolean).join(" · ");
+      btn.innerHTML = `<span class="mark" aria-hidden="true"></span><span>${item.text}${note ? `<small>${note}</small>` : ""}</span>`;
+      btn.addEventListener("click", () => { pk.extra[i] = !pk.extra[i]; renderConstraints(); calc(); });
+      card.appendChild(btn);
+      if (item.stacks) {
+        const id = `stk-${b.id}-${i}`, n = stackOf(pk, item, i), mx = item.stacks.max;
+        const row = document.createElement("div"); row.className = "stack-row"; row.dataset.off = String(!pk.extra[i]);
+        row.innerHTML = `<label for="${id}">중첩 수</label>
+          <div class="inp"><input id="${id}" type="number" inputmode="numeric" min="0" max="${mx}" step="1" value="${n}"><span class="unit">/ ${mx}</span></div>
+          <input class="range" type="range" min="0" max="${mx}" step="1" value="${n}" aria-label="중첩 수 슬라이더">`;
+        const numEl = row.querySelector(`#${id}`), rangeEl = row.querySelector(".range");
+        const setN = (v, from) => {
+          pk.stacks[i] = v;
+          const c = stackOf(pk, item, i);
+          if (from !== numEl) numEl.value = c;
+          if (from !== rangeEl) rangeEl.value = c;
+          calc();
+        };
+        numEl.addEventListener("input", () => setN(parseFloat(numEl.value) || 0, numEl));
+        numEl.addEventListener("change", () => { numEl.value = stackOf(pk, item, i); });
+        rangeEl.addEventListener("input", () => setN(+rangeEl.value, rangeEl));
+        card.appendChild(row);
+      }
+      ex.appendChild(card);
+    });
+  }
+
+  // 제약 (공통 + 보스별 저항 속성)
+  const cl = $("consList"); cl.innerHTML = "";
+  cl.appendChild(optGroup("적 HP 증가", CONSTRAINT_HP, pk.hp, i => { pk.hp = i; renderConstraints(); calc(); }));
+  if (!b.constraintRes) {
+    const p = document.createElement("p"); p.className = "empty";
+    p.textContent = `${b.name}의 제약에 나오는 "적의 X속성 저항 증가" 속성 목록을 기다리는 중입니다.`;
+    cl.appendChild(p);
+  } else {
+    b.constraintRes.forEach(k => cl.appendChild(optGroup(`적의 ${elName(k)}속성 저항 증가`, CONSTRAINT_RES, pk.res[k] ?? null,
+      i => { pk.res[k] = i; renderConstraints(); calc(); })));
+  }
+}
+
+/* 선택된 제약을 합산 */
+function activeMods(b) {
+  const pk = pickOf(pickKey(b));
+  const m = { hp: 0, defPct: 0, dmgMult: 1, res: {} };
+  if (pk.hp != null) m.hp += CONSTRAINT_HP[pk.hp];
+  (b.constraintRes || []).forEach(k => { if (pk.res[k] != null) m.res[k] = (m.res[k] || 0) + CONSTRAINT_RES[pk.res[k]]; });
+  (b.extra || []).forEach((it, i) => {
+    if (!pk.extra[i]) return;
+    const n = it.stacks ? stackOf(pk, it, i) : 1; // 중첩형이면 효과 × 중첩 수
+    m.hp += (it.hp || 0) * n; m.defPct += (it.defPct || 0) * n; if (it.dmgMult) m.dmgMult *= it.dmgMult;
+    Object.entries(it.res || {}).forEach(([k, v]) => m.res[k] = (m.res[k] || 0) + v * n);
+    if (it.resAll) ELEMENTS.forEach(e => m.res[e.key] = (m.res[e.key] || 0) + it.resAll * n);
+  });
+  return m;
+}
+
+/* ═════════ 계산 ═════════ */
+function calc() {
+  const b = boss(), p = phase();
+  const ele = ELEMENTS.find(e => e.key === $("element").value) || ELEMENTS[0];
+  const lv = Math.min(100, Math.max(1, num("lv")));
+  const atk = num("atk"), mult = num("mult") / 100;
+  const crRaw = num("cr") / 100, cr = Math.min(1, Math.max(0, crRaw)), cd = num("cd") / 100;
+  const dmgZone = 1 + (num("dmgAll") + num("dmgEle")) / 100;
+  const ignDef = Math.min(1, Math.max(0, num("ignDef") / 100));
+  const ignRes = num("ignRes") / 100;
+  const m = activeMods(b);
+
+  const defRaw = p.def * (1 + m.defPct);
+  const effDef = effectiveDef(p.def, m.defPct, ignDef);
+  const dZone = defenseZone(lv, effDef, ele.ignoresDefense);
+  const effRes = p.res[ele.key] + (m.res[ele.key] || 0) - ignRes;
+  const rZone = resistanceZone(effRes);
+
+  const base = atk * mult * dmgZone * dZone * rZone * m.dmgMult;
+  const crit = base * (1 + cd);
+  const expected = base * (1 + cr * cd);
+  const hp = p.hp * (1 + m.hp);
+
+  // 목표 상세정보
+  $("contentName").textContent = content().name;
+  $("sHp").textContent = fmtInt(p.hp);
+  $("sDef").textContent = fmtInt(p.def);
+  $("sBreak").textContent = p.breakMax;
+  $("packId").textContent = p.packId;
+  $("resGrid").innerHTML = ELEMENTS.map(e => {
+    const v = p.res[e.key];
+    const cls = ["res-cell", e.key === ele.key ? "on" : "", v < DEFAULT_RES ? "weak" : ""].join(" ");
+    return `<div class="${cls}"><span>${e.name}</span><b>${fmtPct(v)}</b></div>`;
+  }).join("");
+
+  // 결과
+  $("rExp").textContent = fmtInt(expected);
+  $("rBase").textContent = fmtInt(base);
+  $("rCrit").textContent = fmtInt(crit);
+  $("rCritNote").textContent = `치명타 발생 기준 = 치명타 미발생 × (1 + 치명타 피해 ${fmtPct(cd)})`;
+  $("rExpNote").textContent = crRaw > 1
+    ? `기대값: 치명타 확률 ${fmtPct(crRaw)}는 100%로 계산했습니다.`
+    : `기대값 = 치명타 미발생 × (1 + ${fmtPct(cr)} × ${fmtPct(cd)})`;
+
+  $("bAtk").textContent = fmtInt(atk * mult);
+  $("bDmg").textContent = fmtX(dmgZone);
+  $("bDef").textContent = ele.ignoresDefense ? "× 1 (정신 피해)" : fmtX(dZone);
+  $("bRes").textContent = fmtX(rZone);
+  $("bMult").textContent = fmtX(m.dmgMult);
+  $("bDefRaw").textContent = fmtInt(defRaw);
+  $("bEffDef").textContent = ele.ignoresDefense ? "적용 안 됨" : fmtInt(effDef);
+  $("bEffRes").textContent = `${elName(ele.key)} ${fmtPct(effRes)}`;
+  $("bHp").textContent = fmtInt(hp);
+  save();
+}
+
+/* ═════════ 저장 ═════════ */
+function save() {
+  try {
+    const s = { element: $("element").value, content: $("content").value, boss: $("boss").value, phase: $("phase").value, crit: !$("critBox").hidden, picks };
+    NUM_IDS.forEach(id => s[id] = $(id).value);
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  } catch (e) {}
+}
+function load() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) {}
+  if (!s) return;
+  NUM_IDS.forEach(id => { if (s[id] != null) $(id).value = s[id]; });
+  if (s.picks && typeof s.picks === "object") Object.assign(picks, s.picks);
+  if (s.element && ELEMENTS.some(e => e.key === s.element)) $("element").value = s.element;
+  if (s.content != null && DATA.contents[+s.content]) $("content").value = s.content;
+  onContent();
+  if (s.boss != null && content().bosses[+s.boss]) { $("boss").value = s.boss; onBoss(); }
+  if (s.phase != null && boss().phases[+s.phase]) $("phase").value = s.phase;
+  setCrit(!!s.crit);
+}
+function setCrit(open) {
+  $("critBox").hidden = !open;
+  $("critToggle").setAttribute("aria-expanded", String(open));
+  $("critToggle").textContent = open ? "기대값 / 치명타 미발생 숨기기" : "기대값 / 치명타 미발생 보기";
+}
+
+$("content").addEventListener("change", onContent);
+$("boss").addEventListener("change", onBoss);
+$("phase").addEventListener("change", calc);
+$("element").addEventListener("change", calc);
+NUM_IDS.forEach(id => $(id).addEventListener("input", calc));
+$("critToggle").addEventListener("click", () => { setCrit($("critBox").hidden); save(); });
+$("reset").addEventListener("click", () => { try { localStorage.removeItem(STORE_KEY); } catch (e) {} location.reload(); });
+
+onContent();
+load();
+calc();
+</script>
+</body>
+</html>
