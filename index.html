@@ -74,6 +74,17 @@ h1 { margin: 0; font-size: 22px; font-weight: 900; font-style: italic; letter-sp
 .inp select option { background: var(--panel); }
 .inp .unit { padding-right: 10px; color: var(--muted); font-size: 13px; }
 
+/* 공격 속성 강조 */
+.element-pick { border: 2px solid var(--pink); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; background: linear-gradient(180deg, rgba(232,72,143,0.14), rgba(232,72,143,0.04)); }
+.element-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+.element-head > span:first-child { font-weight: 900; font-style: italic; font-size: 16px; color: var(--weak); text-shadow: 0 2px 0 #000; }
+.element-btns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+@media (max-width: 560px) { .element-btns { grid-template-columns: repeat(4, 1fr); } }
+.el-btn { background: var(--row); border: 1px solid var(--line); border-radius: 999px; padding: 8px 4px; color: var(--ink); font: 700 15px var(--font-body); cursor: pointer; }
+.el-btn:hover { border-color: #4a4a53; }
+.el-btn[aria-checked="true"] { background: var(--pink); border-color: var(--pink); color: #fff; box-shadow: 0 0 0 3px rgba(232,72,143,0.3); }
+.el-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
 /* 추가 제약 (체크 목록) / 제약 (3단 선택) */
 .extra-list { display: grid; gap: 8px; }
 .extra-card { background: var(--row); border: 1px solid var(--line); border-radius: 12px; }
@@ -155,11 +166,15 @@ dl.break .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); height: 
     <div class="col">
       <section class="panel" aria-labelledby="h-char">
         <h2 class="heading" id="h-char">캐릭터 스탯</h2>
+        <div class="element-pick" role="radiogroup" aria-labelledby="elLabel">
+          <div class="element-head"><span id="elLabel">공격 속성</span><span class="tiny">캐릭터의 공격 속성을 먼저 골라주세요. 보스 저항이 이 속성 기준으로 적용됩니다.</span></div>
+          <div class="element-btns" id="elementBtns"></div>
+          <input type="hidden" id="element" value="light">
+        </div>
         <div class="fields">
           <div class="field"><label for="lv">캐릭터 레벨</label><div class="inp"><input id="lv" type="number" inputmode="numeric" min="1" max="100" step="1" value="80"></div></div>
           <div class="field"><label for="atk">공격력</label><div class="inp"><input id="atk" type="number" inputmode="decimal" min="0" step="1" value="3000"></div></div>
           <div class="field"><label for="mult">스킬 계수</label><div class="inp"><input id="mult" type="number" inputmode="decimal" min="0" step="0.1" value="100"><span class="unit">%</span></div></div>
-          <div class="field"><label for="element">공격 속성</label><div class="inp"><select id="element"></select></div></div>
           <div class="field"><label for="cr">치명타 확률</label><div class="inp"><input id="cr" type="number" inputmode="decimal" min="0" step="0.1" value="50"><span class="unit">%</span></div></div>
           <div class="field"><label for="cd">치명타 피해</label><div class="inp"><input id="cd" type="number" inputmode="decimal" min="0" step="0.1" value="100"><span class="unit">%</span></div></div>
           <div class="field"><label for="dmgAll">통용 피해증가</label><div class="inp"><input id="dmgAll" type="number" inputmode="decimal" step="0.1" value="0"><span class="unit">%</span></div></div>
@@ -266,38 +281,6 @@ const DATA = {
           ],
           phases: [
           { packId: "boss_04_BP_DiyBoss_DataPack3", hp: 2514432, atk: 1063, def: 1032, res: R(0.2,0.2,0.16,0.2,0.2,0.2,0.2,0.2), breakMax: 45 } ] },
-        { id: "headless", name: "머리 없는 라이더",
-          constraintRes: ["light", "spirit", "curse"],
-          extra: [
-            { text: "플레이어는 전투 중에 통상적인 공격으로 사이클 수치를 획득할 수 없고, 적이 붕괴 상태에 빠지면 파티 전체의 사이클 수치가 완전히 회복된다." },
-            { text: "머리 없는 라이더의 공격이 플레이어에게 명중할 때마다 랜덤 1개 속성의 이능력 피해 저항이 10% 증가한다.",
-              note: "피격 횟수와 속성이 랜덤이라 계산에 반영하지 않음" },
-            { text: "적의 공격이 플레이어에게 명중할 때마다 파티 전체의 바이레일 스킬 쿨타임이 2초 증가한다. (최대 999초)" }
-          ],
-          phases: [
-          { packId: "boss_13_BP_DiyBoss_DataPack3", hp: 3778005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.16,0.2,0.2), breakMax: 70 } ] },
-        { id: "kingbutterfly", name: "왕나비",
-          constraintRes: ["dark", "soul", "phase"],
-          extra: [
-            { text: "왕나비가 전투 시작 시 HP의 30%에 해당하는 방어막을 획득하고, 방어력을 50% 획득한다.", defPct: 0.5,
-              note: "방어력 50%만 계산에 반영 (방어막은 HP에 포함하지 않음)" },
-            { text: "적의 공격이 플레이어를 명중할 때마다 체력 30P 감소 (최대 0까지 감소)" },
-            { text: "적 공격이 플레이어를 명중할 때마다 현재 캐릭터의 울트에너지가 20P 감소한다. (최대 0까지 감소)" }
-          ],
-          phases: [
-          { packId: "Boss_08_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.16,0.2,0.2,0.2), breakMax: 70 } ] },
-        { id: "sugeumwon", name: "「수금원」",
-          constraintRes: ["curse", "dark", "soul"],
-          extra: [
-            { text: "수금원의 HP가 50% 미만일 시 공격력이 50% 증가하고 방어력이 50% 증가한다.", defPct: 0.5,
-              note: "조건부: 수금원의 HP가 50% 미만인 구간을 계산할 때 체크" },
-            { text: "파티 전체가 10초마다 HP를 2% 잃는다. (최대 HP의 20%까지 감소)" },
-            { text: "적이 붕괴 상태에 빠지지 않는다." }
-          ],
-          phases: [
-          { packId: "boss_26_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2173, def: 1062, res: R(0.2,0.16,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
-        { id: "mammon", name: "마몬", ...MAMMON_CARDBOARD, phases: [
-          { packId: "boss_17_BP_DiyBoss_DataPack3", hp: 5084484, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
         { id: "blackbook", name: "검은책",
           constraintRes: ["light", "spirit", "phase"],
           extra: [
@@ -307,19 +290,6 @@ const DATA = {
           ],
           phases: [
           { packId: "boss_09_BP_Diy_DataPack3", hp: 3778005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.16,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
-        { id: "tyrantbear", name: "폭군베어",
-          constraintRes: ["light", "soul", "phase"],
-          extra: [
-            { text: "폭군베어의 공격력이 3초마다 2% 증가하고(최대 20%), 상한 도달 시 방어력을 50% 획득한다.", defPct: 0.5,
-              note: "조건부: 공격력 상한 도달(전투 시작 약 30초) 이후를 계산할 때 체크" },
-            { text: "적의 HP가 25% 증가한다. 플레이어가 반격기 발동에 성공할 때마다 적의 HP가 추가로 3% 차감된다.", hp: 0.25,
-              note: "HP 25% 증가만 반영 (반격기 차감은 반영하지 않음)" },
-            { text: "적의 공격이 플레이어에게 명중할 때마다 플레이어가 혼란 상태에 빠진다. (이동 방향 조작 반전, 5초 지속)" }
-          ],
-          phases: [
-          { packId: "mon_051_BP_Diy_DataPack3", hp: 4498005, atk: 2142, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.16,0.2), breakMax: 70 } ] },
-        { id: "cardboard", name: "골판지 캐슬", ...MAMMON_CARDBOARD, phases: [
-          { packId: "mon_48_BP_Diy_DataPack3", hp: 3813363, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
         { id: "inquisitor", name: "이단심문관",
           constraintRes: ["curse", "dark", "soul"],
           extra: [
@@ -334,7 +304,52 @@ const DATA = {
           ],
           phases: [
           { label: "1페이즈", packId: "boss_039_BP_Diy_DataPack3",   hp: 2542242, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 },
-          { label: "2페이즈", packId: "boss_039_2_BP_Diy_DataPack3", hp: 3813363, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] }
+          { label: "2페이즈", packId: "boss_039_2_BP_Diy_DataPack3", hp: 3813363, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "headless", name: "머리 없는 라이더",
+          constraintRes: ["light", "spirit", "curse"],
+          extra: [
+            { text: "플레이어는 전투 중에 통상적인 공격으로 사이클 수치를 획득할 수 없고, 적이 붕괴 상태에 빠지면 파티 전체의 사이클 수치가 완전히 회복된다." },
+            { text: "머리 없는 라이더의 공격이 플레이어에게 명중할 때마다 랜덤 1개 속성의 이능력 피해 저항이 10% 증가한다.",
+              note: "피격 횟수와 속성이 랜덤이라 계산에 반영하지 않음" },
+            { text: "적의 공격이 플레이어에게 명중할 때마다 파티 전체의 바이레일 스킬 쿨타임이 2초 증가한다. (최대 999초)" }
+          ],
+          phases: [
+          { packId: "boss_13_BP_DiyBoss_DataPack3", hp: 3778005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.16,0.2,0.2), breakMax: 70 } ] },
+        { id: "tyrantbear", name: "폭군베어",
+          constraintRes: ["light", "soul", "phase"],
+          extra: [
+            { text: "폭군베어의 공격력이 3초마다 2% 증가하고(최대 20%), 상한 도달 시 방어력을 50% 획득한다.", defPct: 0.5,
+              note: "조건부: 공격력 상한 도달(전투 시작 약 30초) 이후를 계산할 때 체크" },
+            { text: "적의 HP가 25% 증가한다. 플레이어가 반격기 발동에 성공할 때마다 적의 HP가 추가로 3% 차감된다.", hp: 0.25,
+              note: "HP 25% 증가만 반영 (반격기 차감은 반영하지 않음)" },
+            { text: "적의 공격이 플레이어에게 명중할 때마다 플레이어가 혼란 상태에 빠진다. (이동 방향 조작 반전, 5초 지속)" }
+          ],
+          phases: [
+          { packId: "mon_051_BP_Diy_DataPack3", hp: 4498005, atk: 2142, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.16,0.2), breakMax: 70 } ] },
+        { id: "kingbutterfly", name: "왕나비",
+          constraintRes: ["dark", "soul", "phase"],
+          extra: [
+            { text: "왕나비가 전투 시작 시 HP의 30%에 해당하는 방어막을 획득하고, 방어력을 50% 획득한다.", defPct: 0.5,
+              note: "방어력 50%만 계산에 반영 (방어막은 HP에 포함하지 않음)" },
+            { text: "적의 공격이 플레이어를 명중할 때마다 체력 30P 감소 (최대 0까지 감소)" },
+            { text: "적 공격이 플레이어를 명중할 때마다 현재 캐릭터의 울트에너지가 20P 감소한다. (최대 0까지 감소)" }
+          ],
+          phases: [
+          { packId: "Boss_08_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2272, def: 1062, res: R(0.2,0.2,0.2,0.2,0.16,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "mammon", name: "마몬", ...MAMMON_CARDBOARD, phases: [
+          { packId: "boss_17_BP_DiyBoss_DataPack3", hp: 5084484, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "cardboard", name: "골판지 캐슬", ...MAMMON_CARDBOARD, phases: [
+          { packId: "mon_48_BP_Diy_DataPack3", hp: 3813363, atk: 2307, def: 1062, res: R(0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] },
+        { id: "sugeumwon", name: "「수금원」",
+          constraintRes: ["curse", "dark", "soul"],
+          extra: [
+            { text: "수금원의 HP가 50% 미만일 시 공격력이 50% 증가하고 방어력이 50% 증가한다.", defPct: 0.5,
+              note: "조건부: 수금원의 HP가 50% 미만인 구간을 계산할 때 체크" },
+            { text: "파티 전체가 10초마다 HP를 2% 잃는다. (최대 HP의 20%까지 감소)" },
+            { text: "적이 붕괴 상태에 빠지지 않는다." }
+          ],
+          phases: [
+          { packId: "boss_26_BP_DiyBoss_DataPack3", hp: 4498005, atk: 2173, def: 1062, res: R(0.2,0.16,0.2,0.2,0.2,0.2,0.2,0.2), breakMax: 70 } ] }
       ]
     }
   ]
@@ -375,7 +390,19 @@ function fillSelect(sel, items, getLabel) {
   sel.innerHTML = "";
   items.forEach((it, i) => { const o = document.createElement("option"); o.value = i; o.textContent = getLabel(it); sel.appendChild(o); });
 }
-ELEMENTS.forEach(e => { const o = document.createElement("option"); o.value = e.key; o.textContent = e.name; $("element").appendChild(o); });
+function renderElementBtns() {
+  const cur = $("element").value;
+  $("elementBtns").innerHTML = "";
+  ELEMENTS.forEach(e => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "el-btn"; b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(e.key === cur)); b.textContent = e.name;
+    b.addEventListener("click", () => setElement(e.key));
+    $("elementBtns").appendChild(b);
+  });
+}
+function setElement(key) { $("element").value = key; renderElementBtns(); calc(); }
+renderElementBtns();
 fillSelect($("content"), DATA.contents, c => c.name);
 
 const content = () => DATA.contents[+$("content").value] || DATA.contents[0];
@@ -534,9 +561,11 @@ function calc() {
 }
 
 /* ═════════ 저장 ═════════ */
+let ready = false; // 저장된 값을 불러오기 전에는 저장하지 않음
 function save() {
+  if (!ready) return;
   try {
-    const s = { element: $("element").value, content: $("content").value, boss: $("boss").value, phase: $("phase").value, crit: !$("critBox").hidden, picks };
+    const s = { element: $("element").value, content: $("content").value, bossId: boss().id, phase: $("phase").value, crit: !$("critBox").hidden, picks };
     NUM_IDS.forEach(id => s[id] = $(id).value);
     localStorage.setItem(STORE_KEY, JSON.stringify(s));
   } catch (e) {}
@@ -547,10 +576,11 @@ function load() {
   if (!s) return;
   NUM_IDS.forEach(id => { if (s[id] != null) $(id).value = s[id]; });
   if (s.picks && typeof s.picks === "object") Object.assign(picks, s.picks);
-  if (s.element && ELEMENTS.some(e => e.key === s.element)) $("element").value = s.element;
+  if (s.element && ELEMENTS.some(e => e.key === s.element)) { $("element").value = s.element; renderElementBtns(); }
   if (s.content != null && DATA.contents[+s.content]) $("content").value = s.content;
   onContent();
-  if (s.boss != null && content().bosses[+s.boss]) { $("boss").value = s.boss; onBoss(); }
+  const bi = content().bosses.findIndex(b => b.id === s.bossId);
+  if (bi >= 0) { $("boss").value = bi; onBoss(); }
   if (s.phase != null && boss().phases[+s.phase]) $("phase").value = s.phase;
   setCrit(!!s.crit);
 }
@@ -563,13 +593,13 @@ function setCrit(open) {
 $("content").addEventListener("change", onContent);
 $("boss").addEventListener("change", onBoss);
 $("phase").addEventListener("change", calc);
-$("element").addEventListener("change", calc);
 NUM_IDS.forEach(id => $(id).addEventListener("input", calc));
 $("critToggle").addEventListener("click", () => { setCrit($("critBox").hidden); save(); });
 $("reset").addEventListener("click", () => { try { localStorage.removeItem(STORE_KEY); } catch (e) {} location.reload(); });
 
 onContent();
 load();
+ready = true;
 calc();
 </script>
 </body>
